@@ -235,10 +235,13 @@ def main():
                 prompt="Enter resource name of the agent to undeploy (e.g., projects/PROJECT_ID/locations/LOCATION/agents/AGENT_ID)",
                 required=True
             )
-            confirmation = input(f"Are you sure you want to undeploy agent with resource name '{re_resource_name}'? (yes/no): ")
+            confirmation = input(f"Are you sure you want to undeploy agent with resource name '{re_resource_name}'? (yes/no/force): ")
             if confirmation.lower() == "yes":
-                result = agent_engine_manager.delete_agent(re_resource_name)
+                result = agent_engine_manager.delete_agent(re_resource_name, force=False)
                 print(json.dumps({"message": result}, indent=2) if isinstance(result, str) else json.dumps(result, indent=2))
+            elif confirmation.lower() == "force":
+                result = agent_engine_manager.delete_agent(re_resource_name, force=True)
+                print(json.dumps({"Forced undeployment of agent with resource name '{re_resource_name}': message": result}, indent=2) if isinstance(result, str) else json.dumps(result, indent=2))
             else:
                 print("Undeployment cancelled.")
 

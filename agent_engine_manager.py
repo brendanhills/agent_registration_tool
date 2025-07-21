@@ -53,18 +53,19 @@ def list_agents():
     return json.dumps(agents_list, indent=2)
 
 
-def delete_agent(resource_name):
+def delete_agent(resource_name, force=False):
     """
     Deletes an agent from the Agent Engine by its resource name.
 
     Args:
         resource_name (str): The resource name of the agent to delete.
+        force (bool, optional): Whether to force the deletion. Defaults to False.
 
     Returns:
         str: A success message indicating the agent was deleted.
     """
     _ensure_vertex_ai_initialized()
-    agent_engines.delete(resource_name)
+    agent_engines.delete(resource_name, force=force)
     return f"Agent with resource name {resource_name} deleted successfully."
 
 
