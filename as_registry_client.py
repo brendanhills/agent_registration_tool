@@ -15,8 +15,9 @@ from as_agent_registry_service import (
 import agent_engine_manager # For Vertex AI Agent Engine specific operations
 
 # Configure logging for the client
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s:%(levelname)s:%(name)s:%(message)s', force=True)
+logger.debug("Logging started")
 
 DEFAULT_CONFIG_FILE = "config.json"
 
@@ -88,9 +89,14 @@ def main():
         help="Action to perform. Refer to specific action help for required parameters.",
     )
 
+    #general parameters
+    parser.add_argument("--log", help="Set the logging level.  Values are DEBUG, INFO, WARNING, ERROR, CRITICAL.", default="INFO")
+
     # Common parameters / Vertex AI Init
     parser.add_argument("--project_id", help="Google Cloud Project ID. Used for both services.")
     parser.add_argument("--location", help="Google Cloud Location/Region for Vertex AI (e.g., us-central1). Used for Agent Engine.")
+
+
 
     # Parameters for AS Agent Registry Service
     parser.add_argument("--config", help=f"Path to the config file (default: {DEFAULT_CONFIG_FILE})", default=DEFAULT_CONFIG_FILE)
@@ -106,13 +112,21 @@ def main():
     parser.add_argument("--re_location", help="Reasoning Engine location for AS Agent Registry Service (default: global)")
 
     # Parameters for Agent Engine Manager
-    parser.add_argument("--re_resource_name", help="Full Resource Name for Agent Engine (e.g., projects/.../agents/AGENT_ID). Required for 'undeploy_agent'.")
+    parser.add_argument("--re_resource_name", help="Full Resource Name for Agent Engine (e.g., projects/.../agents/AGENT_ID). Required for 'undeploy_agent' and optional for create_agent.")
     parser.add_argument("--re_resource_id", help="Resource ID for Agent Engine. Required for 'get_deployed_agent'.")
     parser.add_argument("--re_display_name", help="Display name for Agent Engine. Required for 'list_deployed_agents_by_name'.")
 
 
     args = parser.parse_args()
     config = load_config(args.config)
+
+    if args.log:
+        log_level = getattr(logging, args.log.upper(), None)
+        if not isinstance(log_level, int):
+            raise ValueError(f"Invalid log level: {args.log}")
+        logging.getLogger().setLevel(log_level)
+        logger.debug(f"Set log level to: {log_level} ({args.log.upper()})")
+
 
     action = args.action
     if not action:
@@ -143,7 +157,8 @@ def main():
                 logger.error("Project ID is required for Agent Engine operations.")
                 return
 
-            logger.info(f"Initializing Vertex AI with Project ID: {project_id_for_init}, Location: {location_for_init or 'Default'}")
+            logger.debug(f"Initializing Vertex AI with Project ID: {project_id_for_init}, Location: {location_for_init or 'Default'}")
+            print(f"Project ID: {project_id_for_init}, Location: {location_for_init or 'Default'}")
             agent_engine_manager.initialize_vertex_ai(project_id_for_init, location_for_init)
         # --- End Vertex AI Initialization ---
 
@@ -159,20 +174,24 @@ def main():
             re_location = get_parameter("re_location", config, args, "Enter Reasoning Engine location (optional, default: global)", default="global")
             api_location = get_parameter("api_location", config, args, "Enter API location (optional, default: global)", default="global")
             icon_uri = get_parameter("icon_uri", config, args, "Enter icon URI (optional)")
+            re_resource_name = get_parameter("re_resource_name", config, args, default="", required=False)
+
 
             result = ars_create_agent(
                 project_id, app_id, ars_display_name, description, tool_description,
                 adk_deployment_id, auth_id, icon_uri,
-                re_location=re_location, api_location=api_location
+                re_location=re_location, api_location=api_location, re_resource_name=re_resource_name
             )
-            print(json.dumps(result, indent=2))
+            logging.debug(json.dumps(result, indent=2))
+            print(f"Result: {result.get('message',{})}")
 
         elif action == "list_registry":
             project_id = get_parameter("project_id", config, args, "Enter Google Cloud Project ID", required=True)
             app_id = get_parameter("app_id", config, args, "Enter App ID", required=True)
             api_location = get_parameter("api_location", config, args, "Enter API location (optional, default: global)", default="global")
             result = ars_list_agents(project_id, app_id, api_location=api_location)
-            print(json.dumps(result, indent=2))
+            logging.debug(json.dumps(result, indent=2))
+            print(f"Result: ")
 
         elif action == "get_registered_agent":
             project_id = get_parameter("project_id", config, args, "Enter Google Cloud Project ID", required=True)
@@ -213,13 +232,18 @@ def main():
         elif action == "unregister_agent":
             project_id = get_parameter("project_id", config, args, "Enter Google Cloud Project ID", required=True)
             app_id = get_parameter("app_id", config, args, "Enter App ID", required=True)
-            agent_id = get_parameter("agent_id", config, args, "Enter Agent ID to unregister", required=True) # This was the highlighted line
+            agent_id = get_parameter("agent_id", config, args, "Enter Agent ID to unregister", required=True) 
             api_location = get_parameter("api_location", config, args, "Enter API location (optional, default: global)", default="global")
+            if agent_id == "" or agent_id == None:
+                logger.error("Agent ID is required for unregistration.")
+                print("Agent ID is required to unregister an agent from Agentspace.")
+                return
 
             confirmation = input(f"Are you sure you want to unregister agent '{agent_id}' from App '{app_id}'? (yes/no): ")
             if confirmation.lower() == "yes":
                 result = ars_delete_agent(project_id, app_id, agent_id, api_location=api_location)
-                print(json.dumps(result, indent=2))
+                logging.debug(json.dumps(result, indent=2))
+                print(f"Result: {result.get('message',{})}")
             else:
                 print("Unregistering agent cancelled.")
 

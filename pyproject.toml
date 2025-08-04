@@ -1,0 +1,11 @@
+[project]
+name = "agent-registration-tool"
+version = "0.1.0"
+description = "This client provides a command-line interface to interact with both the the Agent Engine (managing deployed agents on Vertex AI Agent Engine) and Agentspace (managing agent metadata in Agentspace's Agent Gallery)."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "google-auth>=2.40.3",
+    "google-cloud-aiplatform>=1.104.0",
+    "streamlit>=1.47.0",
+]

@@ -4,7 +4,7 @@ import json
 import logging
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 _vertex_ai_initialized = False

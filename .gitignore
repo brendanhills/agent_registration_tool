@@ -2,3 +2,7 @@
 __pycache__
 .gitignore
 config.txt
+config.json
+uv.lock
+.python-version
+agent_registration_tool.code-workspace

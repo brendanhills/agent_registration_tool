@@ -108,7 +108,7 @@ The following options can be used to provide parameters:
 *   `--re_location <re_location>`: Location of the Reasoning Engine and Authorizations (default: `global`).
 
 **For Agent Engine Manager (AEM - Vertex AI Agent Engine):**
-*   `--re_resource_name <resource_name>`: Full resource name of the deployed agent on Vertex AI (e.g., `projects/PROJECT_ID/locations/LOCATION/agents/AGENT_ID`). Required for `undeploy_agent`.
+*   `--re_resource_name <resource_name>`: Full resource name of the deployed agent on Vertex AI (e.g., `projects/PROJECT_ID/locations/LOCATION/agents/ADK_DEPLOYMENT_ID`). Required for `undeploy_agent`.
 *   `--re_resource_id <resource_id>`: Resource ID of the deployed agent on Vertex AI. Required for `get_deployed_agent`.
 *   `--re_display_name <display_name>`: Display name of the deployed agent on Vertex AI. Required for `list_deployed_agents_by_name`.
 

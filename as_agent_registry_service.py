@@ -4,6 +4,9 @@ import logging
 import google.auth
 import google.auth.transport.requests
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(format='%(asctime)s: %(levelname)s: %(message)s', level=logging.INFO)
+
 # Scopes define the level of access you are requesting.
 # For this example, we are using the default cloud-platform scope.
 # You may need to specify more granular scopes depending on your needs.
@@ -22,9 +25,11 @@ def get_access_token():
 
         return credentials.token
     except Exception as e:
-        print(f"An error occurred in get_access_token: {e}")
-        import traceback
-        traceback.print_exc() # This will print the full stack trace
+        logging.error(f"An error occurred in get_access_token: {e}")
+        #print(f"An error occurred in get_access_token: {e}")
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            import traceback
+            traceback.print_exc() # This will print the full stack trace
         return None
 
 
@@ -50,7 +55,7 @@ def _build_discovery_engine_url(project_id: str, app_id: str, agent_id: str = No
         return f"{base_path}/{agent_id}"
     return base_path
 
-def create_agent(project_id, app_id, display_name, description, tool_description, adk_deployment_id, auth_id, icon_uri=None, re_location="global", api_location="global"):
+def create_agent(project_id, app_id, display_name, description, tool_description, adk_deployment_id, auth_id, icon_uri=None, re_location="global", api_location="global", re_resource_name=None):
     """
     Creates a new agent in the Agent Registry.
 
@@ -84,6 +89,10 @@ def create_agent(project_id, app_id, display_name, description, tool_description
 
     url = _build_discovery_engine_url(project_id, app_id, api_location=api_location)
 
+    #construct the reasoning engine resource name if it wasn't passed in
+    if not re_resource_name:
+        re_resource_name = f"projects/{project_id}/locations/{re_location}/reasoningEngines/{adk_deployment_id}"
+    
     # Prepare the request body
     data = {
         "displayName": display_name,
@@ -93,7 +102,7 @@ def create_agent(project_id, app_id, display_name, description, tool_description
                 "tool_description": tool_description
             },
             "provisioned_reasoning_engine": {
-                "reasoning_engine": f"projects/{project_id}/locations/{re_location}/reasoningEngines/{adk_deployment_id}"
+                "reasoning_engine": re_resource_name
             },
             "authorizations": [f"projects/{project_id}/locations/{api_location}/authorizations/{auth_id}"] if auth_id else [],
         }
@@ -113,22 +122,25 @@ def create_agent(project_id, app_id, display_name, description, tool_description
         "-d", json.dumps(data)
     ]
 
-    logging.info(f"Create Agent Command: {command}")
+    logging.debug(f"Create Agent Command: {command}")
 
     # Execute the command
     result = subprocess.run(command, capture_output=True, text=True)
 
-    if result.returncode == 0:
+    if result.returncode == 0 and "error" not in result.stdout.lower():
         try:
             agent_data = json.loads(result.stdout)
+            agent_name = agent_data.get("name")
             logging.debug(f"Create Agent Response: {agent_data}")
-            return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "agent": agent_data}
+            return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "agent": agent_data, "message": "Agent created successfully: " + agent_name }
         except json.JSONDecodeError:
-            return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "error": "Could not decode JSON response."}
+            return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "message": "Could not decode JSON response."}
     else:
-        logging.error(f"Create Agent Error: {result.returncode}, {result.stderr}")
-
-    return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr}
+        error_message = json.loads(result.stdout).get("error", {}).get("message", result.stdout)
+        error_code = json.loads(result.stdout).get("error", {}).get("code", "Unknown code")
+        logging.error(f"Create Agent Error: {error_code}, {error_message}")
+        logging.debug(f"Create Agent Response: {result.stdout}")
+    return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "message": "Agent registration failed: " + error_message}
 
 
 def list_agents(project_id, app_id, api_location="global"):
@@ -413,14 +425,20 @@ def delete_agent(project_id, app_id, agent_id, api_location="global"):
         url
     ]
 
-    logging.info(f"Delete Agent Command: {command}")
+    logging.debug(f"Delete Agent Command: {command}")
 
     # Execute the command
     result = subprocess.run(command, capture_output=True, text=True)
 
-    if result.returncode == 0:
-        logging.info(f"Agent {agent_id} deleted successfully.")
+    if result.returncode == 0 and "error" not in result.stdout.lower() :
+        logger.info(f"Agent {agent_id} deleted successfully.")
         return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "message": f"Agent {agent_id} deleted successfully."}
     else:
-        logging.error(f"Error deleting agent {agent_id}: {result.returncode}, {result.stderr}")
-        return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "error": f"Error deleting agent: {result.stderr}"}
+        error_json = json.loads(result.stdout).get("error", {})
+        if error_json == {}:
+            logger.warning(f"Could not parse stdout as JSON: {result.stdout}")
+        error_message = error_json.get("message", result.stdout)
+        error_code = error_json.get("code", "Unknown code")
+        logger.error(f"Error deleting agent {agent_id}: {result.returncode}, {error_code}, {error_message}")
+    
+        return {"status_code": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "message": f"Error deleting agent: {error_message}"}
